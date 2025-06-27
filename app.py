@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm # 【核心修正】導入字體管理器
 from wordcloud import WordCloud
 import jieba
+import os # 導入 os 模組來檢查檔案是否存在
 
 # --- 頁面設定 ---
 st.set_page_config(
@@ -11,47 +13,39 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 中文字體設定 for Matplotlib ---
-plt.rcParams['font.sans-serif'] = ['Noto Sans TC Regular']
-plt.rcParams['axes.unicode_minus'] = False 
+# --- 【核心修正】手動註冊中文字體 ---
+# 字體檔案的路徑 (因為字體檔跟 app.py 在同一個目錄，所以直接寫檔名即可)
+FONT_PATH = 'NotoSansTC-Regular.ttf'
+
+# 檢查字體檔案是否存在
+if os.path.exists(FONT_PATH):
+    # 將字體註冊到 Matplotlib 的字體管理器
+    fm.fontManager.addfont(FONT_PATH)
+    
+    # 設置 Matplotlib 的默認字體
+    # 'Noto Sans TC' 是這個字體檔案內部定義的名稱
+    plt.rc('font', family='Noto Sans TC') 
+    plt.rcParams['axes.unicode_minus'] = False # 解決負號顯示問題
+else:
+    # 如果在 Streamlit Cloud 上找不到字體檔，顯示錯誤訊息
+    # 這有助於部署時的偵錯
+    st.error(f"字體檔案未找到: {FONT_PATH}。請確保 NotoSansTC-Regular.ttf 已經上傳到 GitHub 儲存庫的根目錄。")
+
 
 # --- 載入資料 (使用快取避免重複載入) ---
 @st.cache_data
 def load_data():
     df = pd.read_csv("feedback_data.csv")
-    
-    # 【核心修正】
-    # 直接定義一個乾淨的欄位名稱列表，並強制賦值給 DataFrame 的 columns
-    # 這個順序必須對應 feedback_data.csv 中的欄位順序
     new_columns = [
-        'role',
-        's_content',
-        's_lecturer',
-        's_structure',
-        's_practicality',
-        's_knowledge',
-        's_interaction',
-        's_time',
-        's_overall',
-        'f_hypothesis',
-        'f_p_value',
-        'f_error_type',
-        'f_ab_flow',
-        'f_ab_code',
-        'useful_content',
-        'attractive_part',
-        'suggestions',
-        'feedback_to_lecturer',
-        'additional_comments'
+        'role', 's_content', 's_lecturer', 's_structure', 's_practicality',
+        's_knowledge', 's_interaction', 's_time', 's_overall', 'f_hypothesis',
+        'f_p_value', 'f_error_type', 'f_ab_flow', 'f_ab_code', 'useful_content',
+        'attractive_part', 'suggestions', 'feedback_to_lecturer', 'additional_comments'
     ]
-    
-    # 確保讀入的欄位數量與新欄位名稱列表的長度一致
     if len(df.columns) == len(new_columns):
         df.columns = new_columns
     else:
-        # 如果欄位數量不匹配，拋出錯誤，方便在部署時偵錯
         raise ValueError(f"CSV欄位數量({len(df.columns)})與預期({len(new_columns)})不符！")
-        
     return df
 
 df = load_data()
@@ -73,11 +67,11 @@ else:
 
 # --- 主畫面 ---
 st.title("📊 DTDA 下學期第8堂社課回饋儀表板")
-st.markdown("我們整理了第8堂社課的綜合回饋，可透過左側篩選器查看不同身份成員的意見。")
+st.markdown("我們整理了A/B Testing 社課的綜合回饋，可透過左側篩選器查看不同身份成員的意見。")
 
 # --- 關鍵指標 (KPIs) ---
 total_responses = len(filtered_df)
-avg_satisfaction = filtered_df['s_overall'].mean() # 現在這裡一定能找到 's_overall'
+avg_satisfaction = filtered_df['s_overall'].mean()
 
 col1, col2 = st.columns(2)
 col1.metric("總回饋數", f"{total_responses} 份")
@@ -145,7 +139,7 @@ with tab2:
         if words:
             try:
                 wordcloud = WordCloud(
-                    font_path='NotoSansTC-Regular.ttf', 
+                    font_path=FONT_PATH, # 直接使用我們定義好的字體路徑變數
                     width=800, height=400, background_color='white', collocations=False
                 ).generate(" ".join(words))
                 fig, ax = plt.subplots(figsize=(12, 6))
@@ -153,12 +147,11 @@ with tab2:
                 ax.axis('off')
                 st.pyplot(fig)
             except Exception as e:
-                st.error(f"產生詞雲時發生錯誤: {e}")
+                st.error(f"產生文字雲時發生錯誤: {e}")
         else:
             st.info("在目前的篩選條件下，沒有足夠的文字回饋來產生文字雲。")
     else:
         st.info("在目前的篩選條件下，沒有足夠的文字回饋來產生文字雲。")
-
 
 with tab3:
     st.header("完整回饋留言")
