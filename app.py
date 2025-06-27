@@ -19,30 +19,39 @@ plt.rcParams['axes.unicode_minus'] = False
 @st.cache_data
 def load_data():
     df = pd.read_csv("feedback_data.csv")
-    # 簡化欄位名稱
-    df.columns = [col.strip().replace('\n', '') for col in df.columns]
-    short_cols = {
-        '專案生/研習生/幹部': 'role',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [課程內容滿意度]': 's_content',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [講師的授課技巧]': 's_lecturer',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [課程結構與安排]': 's_structure',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [課程實用性]': 's_practicality',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [學習到的新知識或技能]': 's_knowledge',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [互動性與參與度]': 's_interaction',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [課程時間的合理性]': 's_time',
-        '對於這次社課的滿意程度！（1表示非常不滿意，5為非常滿意） [整體滿意度]': 's_overall',
-        '課後主題熟悉度 [假設檢定基礎概念]': 'f_hypothesis',
-        '課後主題熟悉度 [P 值基礎概念]': 'f_p_value',
-        '課後主題熟悉度 [型一/型二錯誤]': 'f_error_type',
-        '課後主題熟悉度 [A/B Testing 標準流程]': 'f_ab_flow',
-        '課後主題熟悉度 [A/B Testing Python Code]': 'f_ab_code',
-        '根據課程架構，這次講座讓你有收穫的內容是？（可複選）': 'useful_content',
-        '這次社課最吸引你的部分是什麼？': 'attractive_part',
-        '如果有機會再次參加類似課程，你會期待哪些不同之處？或是有無需要調整的地方？': 'suggestions',
-        '有沒有想要跟講師回饋或分享的呢？': 'feedback_to_lecturer',
-        '最後還有沒有想要補充什麼呢～': 'additional_comments'
-    }
-    df.rename(columns=short_cols, inplace=True)
+    
+    # 【核心修正】
+    # 直接定義一個乾淨的欄位名稱列表，並強制賦值給 DataFrame 的 columns
+    # 這個順序必須對應 feedback_data.csv 中的欄位順序
+    new_columns = [
+        'role',
+        's_content',
+        's_lecturer',
+        's_structure',
+        's_practicality',
+        's_knowledge',
+        's_interaction',
+        's_time',
+        's_overall',
+        'f_hypothesis',
+        'f_p_value',
+        'f_error_type',
+        'f_ab_flow',
+        'f_ab_code',
+        'useful_content',
+        'attractive_part',
+        'suggestions',
+        'feedback_to_lecturer',
+        'additional_comments'
+    ]
+    
+    # 確保讀入的欄位數量與新欄位名稱列表的長度一致
+    if len(df.columns) == len(new_columns):
+        df.columns = new_columns
+    else:
+        # 如果欄位數量不匹配，拋出錯誤，方便在部署時偵錯
+        raise ValueError(f"CSV欄位數量({len(df.columns)})與預期({len(new_columns)})不符！")
+        
     return df
 
 df = load_data()
@@ -50,15 +59,13 @@ df = load_data()
 # --- 側邊欄篩選器 ---
 st.sidebar.title("篩選器")
 st.sidebar.markdown("---")
-# 身份篩選
 roles = df['role'].unique()
 selected_roles = st.sidebar.multiselect(
-    "選擇身份查看",
+    "選擇身份：",
     options=roles,
     default=roles
 )
 
-# 根據篩選結果過濾 DataFrame
 if selected_roles:
     filtered_df = df[df['role'].isin(selected_roles)]
 else:
@@ -66,11 +73,11 @@ else:
 
 # --- 主畫面 ---
 st.title("📊 DTDA 下學期第8堂社課回饋儀表板")
-st.markdown("這份儀表板整理了【A/B Testing】社課的學員回饋，可透過左側篩選器查看不同身份成員的意見。")
+st.markdown("我們整理了第8堂社課的綜合回饋，可透過左側篩選器查看不同身份成員的意見。")
 
 # --- 關鍵指標 (KPIs) ---
 total_responses = len(filtered_df)
-avg_satisfaction = filtered_df['s_overall'].mean()
+avg_satisfaction = filtered_df['s_overall'].mean() # 現在這裡一定能找到 's_overall'
 
 col1, col2 = st.columns(2)
 col1.metric("總回饋數", f"{total_responses} 份")
@@ -87,36 +94,36 @@ with tab1:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("課程滿意度 (1-5分)")
-        satisfaction_cols = {
+        st.subheader("課程滿意度(1-5分)")
+        satisfaction_cols_map = {
             's_content': '課程內容', 's_lecturer': '講師技巧', 's_structure': '課程結構',
             's_practicality': '課程實用性', 's_knowledge': '新知學習', 's_interaction': '互動參與',
             's_time': '時間合理性', 's_overall': '整體滿意度'
         }
-        satisfaction_data = filtered_df[satisfaction_cols.keys()].mean().rename(satisfaction_cols)
+        satisfaction_data = filtered_df[satisfaction_cols_map.keys()].mean().rename(satisfaction_cols_map)
         
         fig, ax = plt.subplots(figsize=(10, 8))
         satisfaction_data.sort_values().plot(kind='barh', ax=ax, color='skyblue')
         ax.set_title('各項滿意度平均分數')
         ax.set_xlabel('平均分數')
-        ax.set_xlim(0, 5)
+        ax.set_xlim(0, 5.5)
         for index, value in enumerate(satisfaction_data.sort_values()):
             ax.text(value + 0.05, index, f'{value:.2f}')
         st.pyplot(fig)
 
     with col2:
-        st.subheader("課後主題熟悉度 (1-5分)")
-        familiarity_cols = {
+        st.subheader("課後主題熟悉度(1-5分)")
+        familiarity_cols_map = {
             'f_hypothesis': '假設檢定', 'f_p_value': 'P值概念', 'f_error_type': '型一/二錯誤',
             'f_ab_flow': 'A/B Test流程', 'f_ab_code': 'A/B Test程式碼'
         }
-        familiarity_data = filtered_df[familiarity_cols.keys()].mean().rename(familiarity_cols)
+        familiarity_data = filtered_df[familiarity_cols_map.keys()].mean().rename(familiarity_cols_map)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         familiarity_data.sort_values().plot(kind='barh', ax=ax, color='lightgreen')
         ax.set_title('課後主題熟悉度平均分數')
         ax.set_xlabel('平均分數')
-        ax.set_xlim(0, 5)
+        ax.set_xlim(0, 5.5)
         for index, value in enumerate(familiarity_data.sort_values()):
             ax.text(value + 0.05, index, f'{value:.2f}')
         st.pyplot(fig)
@@ -135,25 +142,28 @@ with tab2:
                          'the', 'to', 'and', 'a', 'test', 'ab', 'testing'])
         words = [word for word in seg_list if word not in stopwords and len(word) > 1]
         
-        try:
-            wordcloud = WordCloud(
-                font_path='NotoSansTC-Regular.ttf', 
-                width=800, height=400, background_color='white', collocations=False
-            ).generate(" ".join(words))
-            fig, ax = plt.subplots(figsize=(12, 6))
-            ax.imshow(wordcloud, interpolation='bilinear')
-            ax.axis('off')
-            st.pyplot(fig)
-        except Exception as e:
-            st.error(f"產生詞雲時發生錯誤: {e}")
+        if words:
+            try:
+                wordcloud = WordCloud(
+                    font_path='NotoSansTC-Regular.ttf', 
+                    width=800, height=400, background_color='white', collocations=False
+                ).generate(" ".join(words))
+                fig, ax = plt.subplots(figsize=(12, 6))
+                ax.imshow(wordcloud, interpolation='bilinear')
+                ax.axis('off')
+                st.pyplot(fig)
+            except Exception as e:
+                st.error(f"產生詞雲時發生錯誤: {e}")
+        else:
+            st.info("在目前的篩選條件下，沒有足夠的文字回饋來產生文字雲。")
     else:
-        st.info("在目前的篩選條件下，沒有足夠的文字回饋來產生詞雲。")
+        st.info("在目前的篩選條件下，沒有足夠的文字回饋來產生文字雲。")
+
 
 with tab3:
     st.header("完整回饋留言")
     st.markdown("以下是篩選後，每份回饋的完整文字內容。")
 
-    # 使用 reset_index() 來產生一個匿名的序號
     for index, row in filtered_df.reset_index(drop=True).iterrows():
         with st.expander(f"💬 回饋 #{index + 1} ({row['role']})"):
             st.markdown(f"**【最吸引我的部分】**\n> {row['attractive_part']}")
